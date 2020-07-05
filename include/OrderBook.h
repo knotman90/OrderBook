@@ -4,15 +4,9 @@
 #include <vector>
 #include <set>
 
-class Order;
-class Trade;
-
-enum class Side {BUY, SELL};
-using OrderId = size_t;
-using Client = size_t;
-using Volume = int;
-using Price = int;
-
+#include "Order.h"
+#include "Types.h"
+#include "Trade.h"
 
 class OrderBook
 {
