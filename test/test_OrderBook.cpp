@@ -8,14 +8,19 @@ Side side;
 Price price;
 Volume volume;
 
+
+
 Order create_order(Client c, const Side &s, const Product &product,
                    const Price &price, const Volume &volume) {
+ static OrderId next_order_id = 0;
+ 
   Order o;
   o.client = c;
   o.side = s;
   o.product = product;
   o.price = price;
   o.volume = volume;
+  o.order_id = next_order_id++;
   return o;
 }
 
@@ -33,7 +38,7 @@ TEST_F(OrderBook_Fixture,
        given_an_empty_book_no_trades_generated_when_BUY_order_is_submitted) {
   constexpr Price price = 1000;
   constexpr Volume volume = 123;
-  constexpr Side side = Side::SELL;
+  constexpr Side side = Side::BUY;
   const Client client = get_next_clientID();
   const Order o = create_order(client, side, "DUMMY", price, volume);
   const auto &traded = ob.submit(o);
@@ -58,7 +63,7 @@ TEST_F(OrderBook_Fixture,
   const auto &traded = ob.submit(o);
   ASSERT_EQ(0, traded.size());
   ASSERT_EQ(volume, ob.get_volume_at_price(side, price));
-  ASSERT_EQ(0, ob.get_volume_at_price(Side::SELL, price));
+  ASSERT_EQ(0, ob.get_volume_at_price(get_opposite_side(side), price));
 
   const std::set<Price> expected_prices = {price};
   ASSERT_EQ(expected_prices, ob.get_prices(side));
@@ -80,10 +85,10 @@ TEST_F(
 
 TEST_F(
     OrderBook_Fixture,
-    given_an_empty_book_no_trades_generated_when_only_BUY_orders_are_submitted) {
+    given_an_empty_book_no_trades_generated_when_only_BUY_for_different_prices_orders_are_submitted) {
   const Client client = get_next_clientID();
   for (int i = 0; i < 100; i++) {
-    const Volume volume = 1 + i;
+    const Volume volume = 1 ;
     const Price price = 1000 + i;
     const Order o = create_order(client, Side::BUY, "DUMMY", 1000 + i, 1);
     const auto &traded = ob.submit(o);
@@ -92,6 +97,24 @@ TEST_F(
     ASSERT_EQ(volume, ob.get_volume_at_price(side, price));
   }
 }
+
+
+TEST_F(
+    OrderBook_Fixture,
+    given_an_empty_book_no_trades_generated_when_only_BUY_for_same_prices_orders_are_submitted) {
+  const Client client = get_next_clientID();
+  for (int i = 0; i < 100; i++) {
+    const Volume volume = 1 +i;
+    const Price price = 1000 ;
+    const Order o = create_order(client, Side::BUY, "DUMMY", 1000, 1);
+    const auto &traded = ob.submit(o);
+    ASSERT_EQ(0, traded.size());
+
+    ASSERT_EQ(volume, ob.get_volume_at_price(side, price));
+
+  }
+}
+
 
 TEST_F(OrderBook_Fixture, from_handout) {
   const Client Alice = get_next_clientID();
@@ -149,7 +172,7 @@ TEST_F(OrderBook_Fixture, from_handout) {
 
   // Erin sells 100 shares at 150$
   {
-    Order order_carol = create_order(Erin, Side::SELL, "ABC", 100, 150);
+    Order order_carol = create_order(Erin, Side::SELL, "ABC", 150, 100);
     const auto &trades = ob.submit(order_carol);
     ASSERT_EQ(2, trades.size());
 
