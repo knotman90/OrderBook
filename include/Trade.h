@@ -2,6 +2,7 @@
 #define TRADE_H
 
 #include "Types.h"
+#include <sstream>
 
 struct Trade
 {
@@ -14,5 +15,17 @@ struct Trade
     bool operator==(const Trade&) const = default;
         
 };
+
+std::ostream& operator<<(std::ostream& out, const Trade& t){
+    std::stringstream ss;
+    ss<<"{";
+    ss<<"buyer: "<< t.buyer<<", ";
+    ss<<"seller: "<< t.seller<<", ";
+    ss<<"price: "<< t.price<<", ";
+    ss<<"volume: "<< t.volume;
+    ss<<"}";
+    out<<ss.str();
+    return out;
+}
 
 #endif // TRADE_H

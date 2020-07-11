@@ -3,12 +3,6 @@
 #include "Order.h"
 #include "OrderBook.h"
 
-Product product;
-Side side;
-Price price;
-Volume volume;
-
-
 
 Order create_order(Client c, const Side &s, const Product &product,
                    const Price &price, const Volume &volume) {
@@ -79,7 +73,7 @@ TEST_F(
     const auto &traded = ob.submit(o);
     ASSERT_EQ(0, traded.size());
 
-    ASSERT_EQ(volume, ob.get_volume_at_price(side, price));
+    ASSERT_EQ(1 + i, ob.get_volume_at_price(Side::SELL, 1000 * i));
   }
 }
 
@@ -94,7 +88,7 @@ TEST_F(
     const auto &traded = ob.submit(o);
     ASSERT_EQ(0, traded.size());
 
-    ASSERT_EQ(volume, ob.get_volume_at_price(side, price));
+    ASSERT_EQ(volume, ob.get_volume_at_price(Side::BUY, price));
   }
 }
 
@@ -110,9 +104,87 @@ TEST_F(
     const auto &traded = ob.submit(o);
     ASSERT_EQ(0, traded.size());
 
-    ASSERT_EQ(volume, ob.get_volume_at_price(side, price));
+    ASSERT_EQ(volume, ob.get_volume_at_price(Side::BUY, price));
 
   }
+}
+
+TEST_F(
+    OrderBook_Fixture, given_a_book_with_only_buy_orders_when_a_sell_order_arrives_price_of_trade_is_passive) {
+  const Client client = get_next_clientID();
+
+  std::set<Price> expected_buy_prices = {}; 
+  std::set<Price> expected_sell_prices = {};
+  ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+  ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
+  for (int i = 0; i < 100; i++) {
+    const Volume volume = 1 + i;
+    const Price price = 1000 +i;
+    const Order o = create_order(client, Side::BUY, "DUMMY", price, volume);
+    const auto &traded = ob.submit(o);
+    ASSERT_EQ(0, traded.size());
+
+    ASSERT_EQ(volume, ob.get_volume_at_price(Side::BUY, price));
+
+    expected_buy_prices.insert(price);
+    ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));    
+    ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
+  }
+  const Client next_client = get_next_clientID();
+  const Order large_sell_order = create_order(next_client, Side::SELL, "DUMMY", 10, 100000);
+  const auto& trades = ob.submit(large_sell_order);
+  ASSERT_EQ(100, trades.size());
+  for(int i = 0 ; i < 100 ; i++){
+    Trade expected_trade;
+    expected_trade.buyer = client;
+    expected_trade.seller = next_client;
+    expected_trade.price = 1000+i;
+    expected_trade.volume = 1+i; 
+    ASSERT_TRUE(std::find(begin(trades), end(trades), expected_trade) != trades.end());
+  }
+}
+
+TEST_F(
+    OrderBook_Fixture, given_a_book_with_only_sell_orders_when_a_sell_order_arrives_price_of_trade_is_passive) {
+  const Client client = get_next_clientID();
+
+  std::set<Price> expected_buy_prices = {}; 
+  std::set<Price> expected_sell_prices = {};
+  ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+  ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
+
+  for (int i = 0; i < 100; i++) {
+    const Volume volume = 1 + i;
+    const Price price = 1000 +i;
+    const Order o = create_order(client, Side::SELL, "DUMMY", price, volume);
+    const auto &traded = ob.submit(o);
+    ASSERT_EQ(0, traded.size());
+
+    ASSERT_EQ(volume, ob.get_volume_at_price(Side::SELL, price));
+
+    expected_sell_prices.insert(price);
+    ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));    
+    ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
+  }
+
+  const Client next_client = get_next_clientID();
+  const Order large_buy_order = create_order(next_client, Side::BUY, "DUMMY", 100000, 100000);
+  const auto& trades = ob.submit(large_buy_order);
+  ASSERT_EQ(100, trades.size());
+  for(int i = 0 ; i < 100 ; i++){
+    Trade expected_trade;
+    expected_trade.buyer = next_client;
+    expected_trade.seller = client;
+    expected_trade.price = 1000+i;
+    expected_trade.volume = 1+i; 
+    ASSERT_TRUE(std::find(begin(trades), end(trades), expected_trade) != trades.end());
+  }
+  expected_buy_prices.clear();
+  expected_buy_prices.insert(large_buy_order.price);
+  
+  ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+  expected_sell_prices.clear();
+  ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
 }
 
 
@@ -126,6 +198,12 @@ TEST_F(OrderBook_Fixture, from_handout) {
   {
     Order order_alice = create_order(Alice, Side::BUY, "ABC", 150, 100);
     ob.submit(order_alice);
+
+    std::set<Price> expected_buy_prices = {150}; 
+    ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+    
+    std::set<Price> expected_sell_prices = {}; 
+    ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
   }
 
   // Bob buys 100 shares at 160
@@ -141,6 +219,12 @@ TEST_F(OrderBook_Fixture, from_handout) {
     }
     ASSERT_EQ(100, ob.get_volume_at_price(Side::BUY, 150));
     ASSERT_EQ(100, ob.get_volume_at_price(Side::BUY, 160));
+
+    std::set<Price> expected_buy_prices = {160, 150}; 
+    ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+    
+    std::set<Price> expected_sell_prices = {}; 
+    ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
   }
 
   // Carol buys 100 shares at 160
@@ -151,6 +235,12 @@ TEST_F(OrderBook_Fixture, from_handout) {
     ASSERT_EQ(100, ob.get_volume_at_price(Side::BUY, 150));
     ASSERT_EQ(200, ob.get_volume_at_price(Side::BUY,
                                           160)); // 200 shares at 160. Bob+Carol
+
+    std::set<Price> expected_buy_prices = {160, 150}; 
+    ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+    
+    std::set<Price> expected_sell_prices = {}; 
+    ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
   }
 
   // Dave sells 150 shares at 160$
@@ -168,6 +258,12 @@ TEST_F(OrderBook_Fixture, from_handout) {
     ASSERT_EQ(50, ob.get_volume_at_price(
                       Side::BUY,
                       160)); // 50 shares left at 160 from Carol's order
+
+    std::set<Price> expected_buy_prices = {160, 150}; 
+    ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+    
+    std::set<Price> expected_sell_prices = {}; 
+    ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
   }
 
   // Erin sells 100 shares at 150$
@@ -185,6 +281,12 @@ TEST_F(OrderBook_Fixture, from_handout) {
                                          150)); // 50 buy shares from Alice left
     ASSERT_EQ(0, ob.get_volume_at_price(Side::BUY,
                                         160)); // no more buy orders at 160
+    
+    std::set<Price> expected_buy_prices = {150}; 
+    ASSERT_EQ(expected_buy_prices, ob.get_prices(Side::BUY));
+    
+    std::set<Price> expected_sell_prices = {}; 
+    ASSERT_EQ(expected_sell_prices, ob.get_prices(Side::SELL));
   }
 }
 
